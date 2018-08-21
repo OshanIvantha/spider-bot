@@ -11,6 +11,8 @@ import cv2
 import imutils
 import time
 
+FRAME_WIDTH = 600
+
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video", help="path to the (optional) video file")
@@ -23,6 +25,9 @@ args = vars(ap.parse_args())
 greenLower = (29, 86, 6)
 greenUpper = (64, 255, 255)
 pts = deque(maxlen=args["buffer"])
+
+# current position of the green object
+targetPosition = -1
 
 # if a video path was not supplied, grab the reference
 # to the webcam
@@ -51,7 +56,7 @@ while True:
 
     # resize the frame, blur it, and convert it to the HSV
     # color space
-    frame = imutils.resize(frame, width=600)
+    frame = imutils.resize(frame, width=FRAME_WIDTH)
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
@@ -64,8 +69,7 @@ while True:
 
     # find contours in the mask and initialize the current
     # (x, y) center of the ball
-    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-                            cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cnts = cnts[0] if imutils.is_cv2() else cnts[1]
     center = None
 
@@ -83,9 +87,15 @@ while True:
         if radius > 10:
             # draw the circle and centroid on the frame,
             # then update the list of tracked points
-            cv2.circle(frame, (int(x), int(y)), int(radius),
-                       (0, 255, 255), 2)
+            cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
             cv2.circle(frame, center, 5, (0, 0, 255), -1)
+
+        # decide the current position of the green object
+        targetPosition = int(center[0] / (FRAME_WIDTH / 5))
+        cv2.putText(frame, str(targetPosition), (center[0] + 10, center[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                    (255, 255, 255), thickness=2, lineType=cv2.LINE_AA)
+    else:
+        targetPosition = -1
 
     # update the points queue
     pts.appendleft(center)
@@ -105,6 +115,10 @@ while True:
     # show the frame to our screen
     cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
+
+    #########################################################################################
+    ############## Call your robot code here. This part is called continuously ##############
+    #########################################################################################
 
     # if the 'q' key is pressed, stop the loop
     if key == ord("q"):
