@@ -11,43 +11,36 @@ import cv2
 import imutils
 import time
 
-FRAME_WIDTH = 600
+from picamera.array import PiRGBArray
+from picamera import PiCamera
 
-# construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-v", "--video", help="path to the (optional) video file")
-ap.add_argument("-b", "--buffer", type=int, default=64, help="max buffer size")
-args = vars(ap.parse_args())
+FRAME_WIDTH = 600
 
 # define the lower and upper boundaries of the "green"
 # ball in the HSV color space, then initialize the
 # list of tracked points
 greenLower = (29, 86, 6)
 greenUpper = (64, 255, 255)
-pts = deque(maxlen=args["buffer"])
+pts = deque(maxlen=64)
 
 # current position of the green object
 targetPosition = -1
 
-# if a video path was not supplied, grab the reference
-# to the webcam
-if not args.get("video", False):
-    vs = VideoStream(src=0).start()
-
-# otherwise, grab a reference to the video file
-else:
-    vs = cv2.VideoCapture(args["video"])
+# initialize the camera and grab a reference to the raw camera capture
+camera = PiCamera()
+camera.resolution = (640, 480)
+camera.vflip=True
+camera.framerate = 32
+rawCapture = PiRGBArray(camera, size=(640, 480))
 
 # allow the camera or video file to warm up
 time.sleep(2.0)
 
 # keep looping
-while True:
-    # grab the current frame
-    frame = vs.read()
-
-    # handle the frame from VideoCapture or VideoStream
-    frame = frame[1] if args.get("video", False) else frame
+for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+    # grab the raw NumPy array representing the image, then initialize the timestamp
+    # and occupied/unoccupied text
+    frame = f.array
 
     # if we are viewing a video and we did not grab a frame,
     # then we have reached the end of the video
@@ -109,7 +102,7 @@ while True:
 
         # otherwise, compute the thickness of the line and
         # draw the connecting lines
-        thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
+        thickness = int(np.sqrt(64 / float(i + 1)) * 2.5)
         cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
 
     # show the frame to our screen
@@ -120,17 +113,12 @@ while True:
     ############## Call your robot code here. This part is called continuously ##############
     #########################################################################################
 
+    # clear the stream in preparation for the next frame
+    rawCapture.truncate(0)
+
     # if the 'q' key is pressed, stop the loop
     if key == ord("q"):
         break
-
-# if we are not using a video file, stop the camera video stream
-if not args.get("video", False):
-    vs.stop()
-
-# otherwise, release the camera
-else:
-    vs.release()
 
 # close all windows
 cv2.destroyAllWindows()
